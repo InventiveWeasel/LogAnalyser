@@ -6,6 +6,7 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.HashMap;
 
 //A classe eh responsavel por ler apenas as mensagens de erro sem 
 //sem considerar os stacktraces
@@ -18,6 +19,7 @@ public class LineReader {
 	private double sum = 0, var = 0, mean = 0, max = 0.0;
 	private int numEvents = 0;
 	private ArrayList<Double> deltas = new ArrayList<Double>();
+	private HashMap<String,Integer> biGramDic;
 	
 	public static void main(String args[]){
 		LineReader reader = new LineReader("server.log");
@@ -32,6 +34,7 @@ public class LineReader {
 			System.err.println("Arquivo nao encontrado: "+filename);
 		}
 		logLines = new ArrayList<String[]>();
+		initializeDic();
 	}
 	
 	public void readLog(){
@@ -45,10 +48,15 @@ public class LineReader {
 			//if(actual.length()!=0){
 				String actualSplit[] = actual.split(" ");
 				actualSplit[0] = actualSplit[0].replace(",",".");
+				actualTime = Timestamp.valueOf(REFERENCE_DATE+actualSplit[0]);
+				actual = normalizeLine(actual);
+				countOccurences(actual);
+				
 				String nextSplit[] = next.split(" ");
 				nextSplit[0] = nextSplit[0].replace(",",".");
-				actualTime = Timestamp.valueOf(REFERENCE_DATE+actualSplit[0]);
 				nextTime = Timestamp.valueOf(REFERENCE_DATE+nextSplit[0]);
+				normalizeLine(next);
+				
 				long auxDelta = Math.abs(nextTime.getTime()-actualTime.getTime());
 				deltas.add(new Double(auxDelta));
 				
@@ -66,7 +74,7 @@ public class LineReader {
 				//if(actualSplit.length != 1){
 					//if(actualSplit[1].equals("WARNING") || actualSplit[1].equals("ERROR") || actualSplit[1].equals("WARN")){
 						logLines.add(actualSplit);
-						System.out.println(actual);
+						//System.out.println(actual);
 					//}
 				//}
 				//next = getLine();
@@ -132,6 +140,91 @@ public class LineReader {
 		if(!aux.matches("[0-9]{2}:[0-9]{2}:[0-9]{2},[0-9]{3}.*"))
 			return true;
 		return false;
+	}
+	
+	private String normalizeLine(String line){
+		String normLine;
+		//@ representa a Timestamp
+		normLine = "@"+line.substring(12);
+		normLine = normLine.toLowerCase();
+		for (int i = 0; i < normLine.length(); i++){
+			if(Character.isDigit(normLine.charAt(i))){
+				//$ substitui todos os dígitos
+				normLine = normLine.substring(0,i)+"$"+normLine.substring(i+1);
+				i--;
+			}else{
+				if(!Character.isLetter(normLine.charAt(i)) && (normLine.charAt(i)!= '@') && (normLine.charAt(i)!= '$')){
+					normLine = normLine.substring(0,i)+normLine.substring(i+1);
+					i--;
+				}
+			}
+		}
+		System.out.println(normLine);
+		return normLine;
+	}
+	
+	private void initializeDic(){
+		biGramDic = new HashMap<String, Integer>();
+		String char1, char2;
+		
+		//Array que contem todos os simbolos do log normalizado
+		ArrayList<String> symbols = new ArrayList<String>();
+		for(int i = 97; i<= 122; i++){
+			symbols.add(new Character((char) i).toString());
+		}
+		for(int i = 130; i<= 164; i++){
+			symbols.add(new Character((char) i).toString());
+			switch(i){
+			case 130:
+				i = 132;
+				break;
+			case 133:
+				i = 134;
+				break;
+			case 136:
+				i = 137;
+				break;
+			case 138:
+				i = 140;
+				break;
+			case 141:
+				i = 148;
+				break;
+			case 149:
+				i = 150;
+				break;
+			case 151:
+				i = 159;
+				break;
+				
+			}
+		}
+		symbols.add("@");
+		symbols.add("$");
+		
+		for(int i = 0; i < symbols.size(); i++){
+			char1 = symbols.get(i);
+			String aux= "";
+			for(int j = 0; j < symbols.size(); j++){
+				char2 = symbols.get(j);
+				biGramDic.put(char1+char2, new Integer(0));
+				aux = aux+char1+char2+" ";
+			}
+			System.out.println(aux);
+		}
+	}
+	
+	private void countOccurences(String line){
+		int i = 0;
+		String aux;
+		int val;
+		while(i+1 < line.length()){
+			aux = line.substring(i,i+2);
+			val = biGramDic.get(aux).intValue();
+			val++;
+			biGramDic.put(aux, new Integer(val));
+			i++;
+		}
 	}
 	
 	//Substitui virgula por ponto
